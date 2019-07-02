@@ -145,7 +145,7 @@ public:
 			// notify the browser process that we want stats
 			auto message = CefProcessMessage::Create("mixer-request-stats");
 			if (message != nullptr && browser_ != nullptr) {
-				browser_->SendProcessMessage(PID_BROWSER, message);
+                browser_->GetMainFrame()->SendProcessMessage(PID_BROWSER, message); // is it really main?
 			}
 			return true;
 		}
@@ -163,8 +163,8 @@ private:
 
 
 class WebApp : public CefApp, 
-					public CefBrowserProcessHandler,
-	            public CefRenderProcessHandler
+			   public CefBrowserProcessHandler,
+	           public CefRenderProcessHandler
 {
 public:
 	WebApp() {
@@ -241,8 +241,9 @@ public:
 	// CefRenderProcessHandler::OnProcessMessageReceived
 	//
 	bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
-		CefProcessId /*source_process*/,
-		CefRefPtr<CefProcessMessage> message) 
+        CefRefPtr<CefFrame> /*frame*/,
+        CefProcessId /*source_process*/,
+		CefRefPtr<CefProcessMessage> message) override
 	{
 		auto const name = message->GetName().ToString();
 		if (name == "mixer-update-stats")
@@ -482,8 +483,9 @@ public:
 		return this;
 	}
 
-	bool OnProcessMessageReceived(
+    bool OnProcessMessageReceived(
 		CefRefPtr<CefBrowser> /*browser*/,
+        CefRefPtr<CefFrame> /* frame*/,
 		CefProcessId /*source_process*/,
 		CefRefPtr<CefProcessMessage> message) override
 	{
@@ -661,7 +663,7 @@ public:
 		}
 	}
 
-	bool OnBeforePopup(CefRefPtr<CefBrowser> browser,
+    bool OnBeforePopup(CefRefPtr<CefBrowser> browser,
 		CefRefPtr<CefFrame> frame,
 		const CefString& target_url,
 		const CefString& target_frame_name,
@@ -671,7 +673,8 @@ public:
 		CefWindowInfo& window_info,
 		CefRefPtr<CefClient>& client,
 		CefBrowserSettings& settings,
-		bool* no_javascript_access) override 
+        CefRefPtr<CefDictionaryValue>& extra_info, 
+        bool* no_javascript_access) override
 	{
 		shared_ptr<Composition> composition;
 		{
@@ -705,6 +708,7 @@ public:
 			view,
 			target_url,
 			settings,
+            nullptr,
 			nullptr);
 
 		// create a new layer to handle drawing for the web popup
@@ -788,7 +792,7 @@ public:
 
 		args->SetDictionary(0, dict);
 
-		browser->SendProcessMessage(PID_RENDERER, message);
+		browser->GetMainFrame()->SendProcessMessage(PID_RENDERER, message); // is it really MainFrame that is needed?
 	}
 
 	void resize(int width, int height)
@@ -1196,6 +1200,8 @@ shared_ptr<Layer> create_web_layer(
 		}
 	}
 
+    //window_info.ex_style = WS_EX_TRANSPARENT;
+
 	CefRefPtr<WebView> view(new WebView(
 			name, device, width, height, 
 			window_info.shared_texture_enabled, 
@@ -1205,7 +1211,8 @@ shared_ptr<Layer> create_web_layer(
 			window_info,
 			view, 
 			url, 
-			settings, 
+			settings,
+            nullptr,
 			nullptr);
 
 	return create_web_layer(device, want_input, view);
